@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>🐍 PyAnalytics — AI Interview Coach</title>
+  <meta name="description" content="Python Data Analytics Interview Quiz powered by Claude AI with live code execution" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- React + Babel (no build step needed) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      -webkit-font-smoothing: antialiased;
+    }
+    #root { min-height: 100vh; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+    /* API key modal overlay */
+    #api-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: linear-gradient(160deg, #0f172a 0%, #1e1b4b 60%, #0f172a 100%);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    #api-box {
+      background: rgba(30,41,59,0.95);
+      border: 1px solid rgba(99,102,241,0.3);
+      border-radius: 20px;
+      padding: 32px 24px;
+      max-width: 420px; width: 100%;
+      text-align: center;
+    }
+    #api-box h1 {
+      font-size: 26px; font-weight: 900; letter-spacing: -1px;
+      background: linear-gradient(90deg, #22d3ee, #818cf8);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+    }
+    #api-box p { color: #94a3b8; font-size: 13px; margin-bottom: 20px; line-height: 1.6; }
+    #api-key-input {
+      width: 100%; padding: 12px 14px;
+      background: #0f172a; border: 1px solid rgba(99,102,241,0.35);
+      border-radius: 10px; color: #e2e8f0; font-size: 13px;
+      font-family: 'Fira Code', monospace; outline: none; margin-bottom: 12px;
+    }
+    #api-key-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+    #api-start-btn {
+      width: 100%; padding: 13px; background: #6366f1; border: none;
+      border-radius: 10px; color: #fff; font-weight: 700; font-size: 15px;
+      cursor: pointer; transition: opacity 0.15s;
+    }
+    #api-start-btn:hover { opacity: 0.88; }
+    #api-note { font-size: 11px; color: #475569; margin-top: 14px; line-height: 1.6; }
+    #api-note a { color: #6366f1; text-decoration: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    .fade-in { animation: fadeIn 0.3s ease; }
+  </style>
+</head>
+<body>
+
+<!-- API Key Gate -->
+<div id="api-overlay">
+  <div id="api-box">
+    <h1>🐍 PyAnalytics</h1>
+    <p style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#64748b;margin-bottom:18px;">AI Python Interview Coach</p>
+    <p>Enter your Anthropic API key to start. It stays in your browser only — never sent anywhere except the Anthropic API.</p>
+    <input id="api-key-input" type="password" placeholder="sk-ant-api03-..." autocomplete="off" />
+    <button id="api-start-btn">Start Practising →</button>
+    <p id="api-note">
+      Your key is stored in <code>sessionStorage</code> and cleared when you close the tab.<br/>
+      Get a key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
+    </p>
+  </div>
+</div>
+
+<div id="root"></div>
+
+<script>
+  // API key gate
+  let ANTHROPIC_API_KEY = sessionStorage.getItem('pya_key') || '';
+  const overlay = document.getElementById('api-overlay');
+  const keyInput = document.getElementById('api-key-input');
+  const startBtn = document.getElementById('api-start-btn');
+
+  function launchApp(key) {
+    ANTHROPIC_API_KEY = key;
+    sessionStorage.setItem('pya_key', key);
+    overlay.style.display = 'none';
+  }
+
+  if (ANTHROPIC_API_KEY && ANTHROPIC_API_KEY.startsWith('sk-')) {
+    launchApp(ANTHROPIC_API_KEY);
+  }
+
+  startBtn.addEventListener('click', () => {
+    const k = keyInput.value.trim();
+    if (!k.startsWith('sk-')) {
+      keyInput.style.borderColor = '#ef4444';
+      keyInput.placeholder = 'Key must start with sk-ant-...';
+      return;
+    }
+    launchApp(k);
+  });
+  keyInput.addEventListener('keydown', e => { if (e.key === 'Enter') startBtn.click(); });
+</script>
+
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+
+// ── Constants ──────────────────────────────────────────────────────────────────
+const LEVELS = ["Easy", "Medium", "Hard", "Expert"];
+const LEVEL_COLORS = {
+  Easy:   { bg: "#10b981", glow: "#10b98166" },
+  Medium: { bg: "#f59e0b", glow: "#f59e0b66" },
+  Hard:   { bg: "#ef4444", glow: "#ef444466" },
+  Expert: { bg: "#8b5cf6", glow: "#8b5cf666" },
+};
+const TOPICS = [
+  "NumPy arrays & vectorisation",
+  "Pandas DataFrames & Series",
+  "Data cleaning & missing values",
+  "GroupBy, pivot & merge",
+  "Matplotlib & Seaborn visualisation",
+  "Statistical analysis & hypothesis testing",
+  "Feature engineering",
+  "Scikit-learn ML pipelines",
+  "Time-series analysis",
+  "Performance optimisation & big data",
+];
+
+// ── Pyodide ────────────────────────────────────────────────────────────────────
+let pyodideInstance = null;
+async function getPyodide() {
+  if (pyodideInstance) return pyodideInstance;
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js';
+  document.head.appendChild(script);
+  await new Promise(r => { script.onload = r; });
+  pyodideInstance = await window.loadPyodide();
+  return pyodideInstance;
+}
+
+async function runPythonCode(code) {
+  try {
+    const py = await getPyodide();
+    py.runPython(`import sys, io\n_out = sys.stdout\nsys.stdout = io.StringIO()`);
+    let result = '', error = '';
+    try {
+      const val = py.runPython(code);
+      const cap = py.runPython('sys.stdout.getvalue()');
+      result = cap || (val != null ? String(val) : '(no output)');
+    } catch(e) { error = String(e); }
+    finally { py.runPython('sys.stdout = _out'); }
+    return { result, error };
+  } catch(e) { return { result:'', error: String(e) }; }
+}
+
+// ── Claude API ─────────────────────────────────────────────────────────────────
+async function askClaude(messages, system) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': window.ANTHROPIC_API_KEY || sessionStorage.getItem('pya_key') || '',
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000, system, messages }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.content?.[0]?.text || '';
+}
+
+async function generateQuestion(level, topic, prev) {
+  const prevStr = prev.length ? `Already asked: ${prev.slice(-3).join(' | ')}. Ask something different.` : '';
+  const system = `You are a Python Data Analytics interview expert. Output STRICT JSON only — no markdown, no backticks, no preamble:
+{"question":"...","hint":"one short hint sentence","correct_code":"runnable standalone Python 3-15 lines with comments","explanation":"2-3 sentences on concept tested","key_concept":"short tag"}`;
+  const prompt = `Level: ${level}. Topic: ${topic}.\n${prevStr}\nGenerate a realistic interview question. correct_code must import libs and create sample data.`;
+  const raw = await askClaude([{role:'user',content:prompt}], system);
+  try { return JSON.parse(raw.replace(/```json|```/g,'').trim()); }
+  catch { return null; }
+}
+
+async function evaluateAnswer(question, answer, level) {
+  const system = `You are a Python Data Analytics evaluator. Output STRICT JSON only:
+{"score":0-100,"verdict":"Correct"|"Partially Correct"|"Incorrect","feedback":"2-3 sentences","improvement":"one tip"}`;
+  const raw = await askClaude([{role:'user',content:`Question: ${question}\nAnswer: ${answer}\nLevel: ${level}`}], system);
+  try { return JSON.parse(raw.replace(/```json|```/g,'').trim()); }
+  catch { return {score:50,verdict:'Partially Correct',feedback:'Could not evaluate automatically.',improvement:'Review the solution below.'}; }
+}
+
+// ── Styles ─────────────────────────────────────────────────────────────────────
+const css = {
+  app: { minHeight:'100vh', background:'linear-gradient(160deg,#0f172a 0%,#1e1b4b 60%,#0f172a 100%)', display:'flex', flexDirection:'column', alignItems:'center', paddingBottom:60 },
+  hdr: { width:'100%', maxWidth:480, padding:'20px 20px 0', textAlign:'center' },
+  logo: { fontSize:26, fontWeight:900, letterSpacing:'-1px', background:'linear-gradient(90deg,#22d3ee,#818cf8)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', marginBottom:2 },
+  sub: { fontSize:11, color:'#64748b', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:14 },
+  card: { width:'100%', maxWidth:480, padding:'0 16px' },
+  panel: { background:'rgba(30,41,59,0.85)', backdropFilter:'blur(12px)', borderRadius:16, border:'1px solid rgba(99,102,241,0.18)', padding:20, marginBottom:14 },
+  lbl: { fontSize:11, fontWeight:700, letterSpacing:'0.1em', color:'#64748b', textTransform:'uppercase', marginBottom:8, display:'block' },
+  sel: { width:'100%', background:'#1e293b', border:'1px solid rgba(99,102,241,0.3)', borderRadius:10, color:'#e2e8f0', padding:'10px 14px', fontSize:14, outline:'none', marginBottom:10, cursor:'pointer' },
+  btn: (c='#6366f1', ghost=false) => ({ display:'flex', alignItems:'center', justifyContent:'center', gap:6, background:ghost?'transparent':c, border:ghost?`1.5px solid ${c}`:'none', borderRadius:10, color:ghost?c:'#fff', fontWeight:700, fontSize:14, padding:'11px 20px', cursor:'pointer', width:'100%', letterSpacing:'0.02em', transition:'opacity 0.15s' }),
+  ta: { width:'100%', background:'#0a0f1e', border:'1px solid rgba(99,102,241,0.2)', borderRadius:10, color:'#e2e8f0', padding:'12px 14px', fontSize:13, fontFamily:"'Fira Code',monospace", lineHeight:1.6, resize:'vertical', minHeight:110, outline:'none' },
+  pre: { background:'#0a0f1e', border:'1px solid rgba(34,211,238,0.15)', borderRadius:10, padding:14, fontSize:12, fontFamily:"'Fira Code',monospace", color:'#a5f3fc', overflowX:'auto', whiteSpace:'pre-wrap', lineHeight:1.7, marginTop:8 },
+  out: (err) => ({ background:err?'rgba(239,68,68,0.08)':'rgba(16,185,129,0.08)', border:`1px solid ${err?'rgba(239,68,68,0.3)':'rgba(16,185,129,0.3)'}`, borderRadius:10, padding:12, fontSize:12, fontFamily:'monospace', color:err?'#fca5a5':'#6ee7b7', marginTop:8, whiteSpace:'pre-wrap' }),
+  pill: (c) => ({ display:'inline-block', background:c+'22', border:`1px solid ${c}55`, borderRadius:20, padding:'3px 10px', fontSize:11, fontWeight:700, color:c }),
+  heat: { display:'flex', gap:4, marginBottom:14 },
+  seg: (on,c) => ({ flex:1, height:4, borderRadius:4, background:on?c:'rgba(255,255,255,0.08)', boxShadow:on?`0 0 6px ${c}`:'none', transition:'all 0.4s' }),
+};
+
+function Spin() {
+  return <div style={{textAlign:'center',padding:'28px 0'}}>
+    <div style={{width:34,height:34,border:'3px solid rgba(99,102,241,0.2)',borderTop:'3px solid #6366f1',borderRadius:'50%',animation:'spin 0.8s linear infinite',margin:'0 auto 10px'}}/>
+    <span style={{color:'#64748b',fontSize:13}}>Thinking…</span>
+  </div>;
+}
+
+function Verdict({v}) {
+  const c = {Correct:'#10b981','Partially Correct':'#f59e0b',Incorrect:'#ef4444'}[v]||'#64748b';
+  return <span style={css.pill(c)}>{v}</span>;
+}
+
+// ── App ────────────────────────────────────────────────────────────────────────
+function App() {
+  const [screen, setScreen]         = useState('home');
+  const [level, setLevel]           = useState('Easy');
+  const [topic, setTopic]           = useState(TOPICS[0]);
+  const [question, setQuestion]     = useState(null);
+  const [loading, setLoading]       = useState(false);
+  const [userAns, setUserAns]       = useState('');
+  const [eval_, setEval]            = useState(null);
+  const [showSol, setShowSol]       = useState(false);
+  const [solOut, setSolOut]         = useState(null);
+  const [userCode, setUserCode]     = useState('');
+  const [userOut, setUserOut]       = useState(null);
+  const [running, setRunning]       = useState(false);
+  const [pyReady, setPyReady]       = useState(false);
+  const [scores, setScores]         = useState([]);
+  const [prevQs, setPrevQs]         = useState([]);
+  const [qCount, setQCount]         = useState(0);
+  const [errMsg, setErrMsg]         = useState('');
+
+  const lvlIdx = LEVELS.indexOf(level);
+
+  useEffect(() => { getPyodide().then(() => setPyReady(true)).catch(()=>{}); }, []);
+
+  async function startQuiz() {
+    setErrMsg('');
+    setLoading(true); setScreen('quiz');
+    setEval(null); setShowSol(false); setSolOut(null);
+    setUserAns(''); setUserCode(''); setUserOut(null);
+    try {
+      const q = await generateQuestion(level, topic, prevQs);
+      if (!q) { setErrMsg('Failed to generate question. Check your API key.'); setLoading(false); return; }
+      setQuestion(q);
+      setPrevQs(p => [...p, q.question.slice(0,60)]);
+      setQCount(c => c+1);
+    } catch(e) { setErrMsg(String(e)); }
+    setLoading(false);
+  }
+
+  async function submit() {
+    if (!userAns.trim()) return;
+    setLoading(true);
+    try {
+      const ev = await evaluateAnswer(question.question, userAns, level);
+      setEval(ev);
+      setScores(s => [...s, ev.score]);
+      // auto-level-up after 2 correct in a row
+      const recent = [...scores, ev.score].slice(-2);
+      if (recent.length===2 && recent.every(s=>s>=80) && lvlIdx < LEVELS.length-1) {
+        setLevel(LEVELS[lvlIdx+1]);
+      }
+    } catch(e) { setErrMsg(String(e)); }
+    setLoading(false);
+  }
+
+  async function runCode(code, setter) {
+    setRunning(true);
+    const r = await runPythonCode(code);
+    setter(r);
+    setRunning(false);
+  }
+
+  function next() {
+    setQuestion(null); setEval(null); setShowSol(false); setSolOut(null);
+    setUserAns(''); setUserCode(''); setUserOut(null); setErrMsg('');
+    setScreen('home');
+  }
+
+  const avg = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : 0;
+
+  // ── HOME ────────────────────────────────────────────────────────────────────
+  if (screen==='home') return (
+    <div style={css.app}>
+      <div style={css.hdr}>
+        <div style={css.logo}>🐍 PyAnalytics</div>
+        <div style={css.sub}>AI Interview Coach</div>
+      </div>
+      <div style={css.card}>
+
+        <div style={css.panel}>
+          <span style={css.lbl}>Difficulty</span>
+          <div style={css.heat}>
+            {LEVELS.map((l,i) => <div key={l} style={css.seg(i<=lvlIdx, LEVEL_COLORS[l].bg)}/>)}
+          </div>
+          <div style={{display:'flex',gap:6}}>
+            {LEVELS.map(l => (
+              <button key={l} onClick={()=>setLevel(l)} style={{
+                ...css.btn(LEVEL_COLORS[l].bg, l!==level),
+                width:'auto', flex:1, padding:'8px 6px', fontSize:12,
+                boxShadow: l===level ? `0 0 12px ${LEVEL_COLORS[l].glow}` : 'none',
+              }}>{l}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={css.panel}>
+          <span style={css.lbl}>Topic</span>
+          <select style={css.sel} value={topic} onChange={e=>setTopic(e.target.value)}>
+            {TOPICS.map(t => <option key={t}>{t}</option>)}
+          </select>
+        </div>
+
+        {scores.length > 0 && (
+          <div style={{...css.panel, display:'flex', justifyContent:'space-around', textAlign:'center', padding:'16px 20px'}}>
+            <div><div style={{fontSize:22,fontWeight:800,color:'#22d3ee'}}>{qCount}</div><div style={{fontSize:11,color:'#64748b'}}>Asked</div></div>
+            <div><div style={{fontSize:22,fontWeight:800,color:avg>=70?'#10b981':'#f59e0b'}}>{avg}%</div><div style={{fontSize:11,color:'#64748b'}}>Avg</div></div>
+            <div><div style={{fontSize:22,fontWeight:800,color:LEVEL_COLORS[level].bg}}>{level}</div><div style={{fontSize:11,color:'#64748b'}}>Level</div></div>
+          </div>
+        )}
+
+        {errMsg && <div style={{background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:10,padding:'10px 14px',color:'#fca5a5',fontSize:12,marginBottom:14}}>{errMsg}</div>}
+
+        <button style={css.btn()} onClick={startQuiz}>✦ Start Question</button>
+
+        {scores.length>0 && (
+          <div style={{display:'flex',gap:8,marginTop:10}}>
+            <button style={{...css.btn('#22d3ee',true),flex:1,width:'auto'}} onClick={()=>setScreen('summary')}>Summary</button>
+            <button style={{...css.btn('#64748b',true),flex:1,width:'auto'}} onClick={()=>{setScores([]);setPrevQs([]);setQCount(0);setLevel('Easy');}}>Reset</button>
+          </div>
+        )}
+
+        <p style={{textAlign:'center',fontSize:11,color:'#334155',marginTop:12}}>
+          {pyReady ? '⚡ Code runner ready' : '⏳ Loading Python runtime…'}
+        </p>
+      </div>
+    </div>
+  );
+
+  // ── QUIZ ────────────────────────────────────────────────────────────────────
+  if (screen==='quiz') return (
+    <div style={css.app}>
+      <div style={css.hdr}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+          <button onClick={()=>setScreen('home')} style={{background:'none',border:'none',color:'#64748b',fontSize:22,cursor:'pointer'}}>←</button>
+          <div style={css.logo}>🐍 PyAnalytics</div>
+          <span style={css.pill(LEVEL_COLORS[level].bg)}>{level}</span>
+        </div>
+        <div style={css.heat}>
+          {LEVELS.map((l,i) => <div key={l} style={css.seg(i<=lvlIdx, LEVEL_COLORS[l].bg)}/>)}
+        </div>
+      </div>
+
+      <div style={css.card}>
+        {loading && !question && <Spin />}
+        {errMsg && <div style={{background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:10,padding:'10px 14px',color:'#fca5a5',fontSize:12,marginBottom:14}}>{errMsg}</div>}
+
+        {question && <>
+          {/* Question card */}
+          <div style={{...css.panel, animation:'fadeIn 0.35s ease'}} className="fade-in">
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
+              <span style={css.lbl}>Q #{qCount}</span>
+              <span style={{...css.pill('#818cf8'),fontSize:10}}>{question.key_concept}</span>
+            </div>
+            <p style={{fontSize:15,lineHeight:1.65,color:'#e2e8f0',margin:0}}>{question.question}</p>
+            {!eval_ && <div style={{marginTop:10,padding:'8px 12px',background:'rgba(99,102,241,0.08)',borderRadius:8,fontSize:12,color:'#818cf8'}}>💡 {question.hint}</div>}
+          </div>
+
+          {/* Answer */}
+          {!eval_ && (
+            <div style={css.panel}>
+              <span style={css.lbl}>Your Answer</span>
+              <textarea style={css.ta} rows={5} placeholder="Explain concept, describe approach, or write code…" value={userAns} onChange={e=>setUserAns(e.target.value)} />
+              <button style={{...css.btn(),marginTop:10}} onClick={submit} disabled={loading||!userAns.trim()}>
+                {loading ? 'Evaluating…' : 'Submit Answer →'}
+              </button>
+            </div>
+          )}
+
+          {loading && !eval_ && <Spin />}
+
+          {/* Evaluation */}
+          {eval_ && (
+            <div style={{...css.panel, animation:'fadeIn 0.3s ease'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                <span style={css.lbl}>Result</span>
+                <Verdict v={eval_.verdict} />
+              </div>
+              <div style={{display:'flex',gap:14,alignItems:'flex-start',marginBottom:12}}>
+                <div style={{fontSize:34,fontWeight:900,color:eval_.score>=80?'#10b981':eval_.score>=50?'#f59e0b':'#ef4444',flexShrink:0}}>
+                  {eval_.score}<span style={{fontSize:14}}>%</span>
+                </div>
+                <p style={{margin:0,fontSize:13,lineHeight:1.6,color:'#cbd5e1'}}>{eval_.feedback}</p>
+              </div>
+              <div style={{background:'rgba(251,191,36,0.07)',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#fbbf24'}}>🎯 {eval_.improvement}</div>
+            </div>
+          )}
+
+          {/* Run your code */}
+          {eval_ && (
+            <div style={css.panel}>
+              <span style={css.lbl}>🧪 Run Your Code</span>
+              <textarea style={{...css.ta,minHeight:90}} placeholder="Write Python here and run it…" value={userCode} onChange={e=>setUserCode(e.target.value)} />
+              <button style={{...css.btn('#22d3ee',true),marginTop:8}} onClick={()=>runCode(userCode,setUserOut)} disabled={running||!userCode.trim()}>
+                {running?'Running…':'▶ Run Code'}
+              </button>
+              {userOut && <div style={css.out(!!userOut.error)}>{userOut.error||userOut.result}</div>}
+            </div>
+          )}
+
+          {/* Solution */}
+          {eval_ && (
+            <div style={css.panel}>
+              <button style={css.btn('#10b981', !showSol)} onClick={()=>setShowSol(s=>!s)}>
+                {showSol ? 'Hide Solution' : '✦ Show Correct Solution'}
+              </button>
+              {showSol && <>
+                <div style={{marginTop:14}}>
+                  <span style={css.lbl}>Explanation</span>
+                  <p style={{fontSize:13,lineHeight:1.65,color:'#cbd5e1',margin:0}}>{question.explanation}</p>
+                </div>
+                <div style={{marginTop:14}}>
+                  <span style={css.lbl}>Correct Code</span>
+                  <pre style={css.pre}>{question.correct_code}</pre>
+                  <button style={{...css.btn('#10b981',true),marginTop:8}} onClick={()=>runCode(question.correct_code,setSolOut)} disabled={running}>
+                    {running?'Running…':'▶ Run Solution'}
+                  </button>
+                  {solOut && <div style={css.out(!!solOut.error)}>{solOut.error||solOut.result}</div>}
+                </div>
+              </>}
+            </div>
+          )}
+
+          {eval_ && (
+            <div style={{display:'flex',gap:8}}>
+              <button style={{...css.btn(),flex:2}} onClick={next}>Next Question →</button>
+              <button style={{...css.btn('#334155',true),flex:1}} onClick={()=>setScreen('summary')}>Summary</button>
+            </div>
+          )}
+        </>}
+      </div>
+    </div>
+  );
+
+  // ── SUMMARY ─────────────────────────────────────────────────────────────────
+  if (screen==='summary') return (
+    <div style={css.app}>
+      <div style={css.hdr}>
+        <div style={css.logo}>🐍 PyAnalytics</div>
+        <div style={css.sub}>Session Summary</div>
+      </div>
+      <div style={css.card}>
+        <div style={css.panel}>
+          <div style={{textAlign:'center',marginBottom:20}}>
+            <div style={{fontSize:54,fontWeight:900,background:'linear-gradient(90deg,#22d3ee,#818cf8)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>{avg}%</div>
+            <div style={{color:'#64748b',fontSize:13}}>Average · {qCount} Questions</div>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-around',marginBottom:18}}>
+            {[['Correct',scores.filter(s=>s>=80).length,'#10b981'],['Partial',scores.filter(s=>s>=50&&s<80).length,'#f59e0b'],['Review',scores.filter(s=>s<50).length,'#ef4444']].map(([l,n,c])=>(
+              <div key={l} style={{textAlign:'center'}}>
+                <div style={{fontSize:22,fontWeight:700,color:c}}>{n}</div>
+                <div style={{fontSize:11,color:'#64748b'}}>{l}</div>
+              </div>
+            ))}
+          </div>
+          {scores.length>0 && (
+            <div style={{marginBottom:14}}>
+              <span style={css.lbl}>Score History</span>
+              <div style={{display:'flex',gap:4,alignItems:'flex-end',height:48}}>
+                {scores.map((s,i)=>{
+                  const c=s>=80?'#10b981':s>=50?'#f59e0b':'#ef4444';
+                  return <div key={i} style={{flex:1,background:c,borderRadius:3,height:`${Math.max(6,(s/100)*48)}px`,minWidth:8,opacity:0.85}} title={`Q${i+1}: ${s}%`}/>;
+                })}
+              </div>
+            </div>
+          )}
+          <div style={{textAlign:'center',padding:'10px 14px',background:'rgba(99,102,241,0.08)',borderRadius:10,fontSize:13,color:'#a5b4fc'}}>
+            {avg>=80?'🚀 Excellent! Ready for expert-level.':avg>=60?'💪 Good progress! Practice edge cases.':'📚 Keep going! Revisit fundamentals.'}
+          </div>
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          <button style={{...css.btn(),flex:2}} onClick={next}>Continue →</button>
+          <button style={{...css.btn('#ef4444',true),flex:1}} onClick={()=>{setScores([]);setPrevQs([]);setQCount(0);setLevel('Easy');setScreen('home');}}>Reset</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
